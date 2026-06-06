@@ -2,6 +2,23 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/); SemVer.
 
+## [0.2.0] — 2026-06-06
+
+### Added
+- **Unified dark + navy suite theme** + a **cross-app sidebar suite navigator** for moving between the apps.
+- **Multi-period capital MILP**: select which project runs in which period under per-period budget +
+  rig-day capacity (fund-once, earliest-start, period-discounted NPV), with a **project×period
+  schedule heatmap** + per-period utilization; **~12% / $35MM uplift over greedy** at ~1% optimality gap.
+- **Funded-vs-rejected scatter** (capex × risked NPV, sized by rig-days).
+- **Shared fleet registry**: Permian field/formation identity consistent across the suite.
+
+### Fixed
+- Infeasible programs no longer render a bogus "feasible ✓" plan (now a clear **infeasibility banner**).
+- Empty-schedule `KeyError` crash.
+
+### Changed
+- Swept deprecated `use_container_width` (→ `width="stretch"`); requires `streamlit>=1.50`.
+
 ## [0.1.0] — 2026-06-04
 
 Initial release — capital-allocation optimizer.

@@ -12,6 +12,12 @@ from .projects import Project
 def schedule_program(econ: pd.DataFrame, selected_ids: list[str], projects: list[Project],
                      n_quarters: int = 4, rig_per_quarter: float | None = None,
                      capex_per_quarter: float | None = None) -> pd.DataFrame:
+    cols = ["project_id", "name", "category", "quarter", "capex_usd", "rig_days", "risked_npv_usd"]
+    if not selected_ids:
+        # No projects selected -> return an empty, correctly-typed frame so the caller
+        # can sort/aggregate without a KeyError on the missing 'quarter' column.
+        return pd.DataFrame({c: pd.Series(dtype="float64" if c.endswith(("_usd", "_days")) else "object")
+                             for c in cols})
     by_id = {p.project_id: p for p in projects}
     sel = (econ[econ["project_id"].isin(selected_ids)]
            .sort_values("capital_efficiency", ascending=False))
