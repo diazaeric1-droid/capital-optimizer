@@ -21,6 +21,7 @@ for _pyc in (REPO_ROOT / "src").rglob("__pycache__"):
 for _m in [m for m in sys.modules if m == "src" or m.startswith("src.")]:
     del sys.modules[_m]
 
+import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
@@ -318,8 +319,33 @@ else:
     })
     edited = st.data_editor(default_plan, hide_index=True, width="stretch",
                             disabled=["Period"], key="mp_plan")
-    budget_pp = [float(v) * 1e6 for v in edited["Budget ($MM)"]]
-    rig_pp = [float(v) for v in edited["Rig-days"]]
+
+    # A cleared / non-numeric capacity cell comes back as NaN (and a user can type a
+    # negative); float(NaN) flows straight into the MILP's constraint RHS and CBC errors
+    # out with a PulpError that the InfeasibleProgram handler below would NOT catch.
+    # Treat any blank / non-finite / negative capacity as 0 for that period (= "no
+    # capacity this period", which the optimizer already handles gracefully) and tell
+    # the user which cell was coerced instead of crashing.
+    def _capacities(series, scale=1.0):
+        vals, bad = [], []
+        for t, v in enumerate(series):
+            x = pd.to_numeric(v, errors="coerce")
+            if pd.isna(x) or not np.isfinite(x) or x < 0:
+                bad.append(t + 1)
+                x = 0.0
+            vals.append(float(x) * scale)
+        return vals, bad
+
+    budget_pp, bad_b = _capacities(edited["Budget ($MM)"], scale=1e6)
+    rig_pp, bad_r = _capacities(edited["Rig-days"])
+    if bad_b or bad_r:
+        msgs = []
+        if bad_b:
+            msgs.append("budget " + ", ".join(f"P{t}" for t in bad_b))
+        if bad_r:
+            msgs.append("rig-days " + ", ".join(f"P{t}" for t in bad_r))
+        st.warning("Blank / invalid per-period capacity treated as 0 for: "
+                   + "; ".join(msgs) + ". Enter a non-negative number to fund that period.")
 
     try:
         mp = milp_select_multiperiod(econ, n_periods, budget_pp, rig_pp,
