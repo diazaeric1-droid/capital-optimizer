@@ -2,6 +2,12 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/); SemVer.
 
+## [0.2.1] — 2026-06-07
+### Fixed
+- **`ModuleNotFoundError: No module named 'theme'`** on deploy — `demo/app.py` now adds its own directory to `sys.path` so the vendored `theme` / `fleet_registry` resolve regardless of cwd (caught by CI render-smoke).
+### Changed
+- **Light theme** — suite-wide migration from dark/navy to a professional light palette (white surfaces, `plotly_white` charts, navy/blue accents retained); transparent fixed header so the title never clips. `runtime.txt` pinned to Python 3.11.
+
 ## [0.2.0] — 2026-06-06
 
 ### Added
