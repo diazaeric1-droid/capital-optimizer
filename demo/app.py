@@ -51,7 +51,20 @@ theme.header(
 )
 theme.data_badge("synthetic", "Modeled drilling / DUC / workover backlog — future capital projects aren't public data.")
 
-with st.expander(f"🆕 What is this / v{__version__}"):
+theme.how_to(
+    "- **What it does:** maximizes total **risked NPV** by selecting *which projects run* (single-period) "
+    "or *which project runs in which period* (multi-period plan), solved as a 0/1 MILP.\n"
+    "- **Inputs:** realized oil price, a **capital budget**, and **rig-day capacity** (per period in the "
+    "multi-period plan), plus an optional minimum first-year production add.\n"
+    "- **Constraints:** total capex ≤ budget and total rig-days ≤ rig capacity (each project funded at most "
+    "once; multi-period adds an earliest-start, fund-once rule with period-discounted NPV).\n"
+    "- **Funded vs. Rejected scatter:** each point is a project — x = capex, y = risked NPV, size ∝ rig-days; "
+    "**green = funded**, grey = rejected. Funded points cluster toward high NPV per unit capex / rig-day.\n"
+    "- **Efficient Frontier:** optimal risked NPV at each budget level; the dashed line marks your current "
+    "budget. The curve flattening shows the diminishing marginal value of capital."
+)
+
+with st.expander(f"🆕 What Is This / v{__version__}"):
     st.markdown(
         "- **Risked project economics** — Arps type curve → discounted cash flow → NPV, IRR, payout, "
         "F&D, and **risked NPV** (chance-of-success weighted) per project.\n"
@@ -91,7 +104,7 @@ total_capex = sum(p.capex_usd for p in projects)
 total_rig = sum(p.rig_days for p in projects)
 
 with st.sidebar:
-    st.header("Plan inputs")
+    st.header("Plan Inputs")
     mode = st.radio("Planning mode",
                     ["📈 Single-period program", "🗓️ Multi-period plan"],
                     help="Single-period picks one program under one budget + rig limit. "
@@ -125,7 +138,7 @@ if mode.startswith("📈"):
     sel = set(program.selected_ids)
     uplift = program.risked_npv - greedy.risked_npv
 
-    tab_prog, tab_sched, tab_val = st.tabs(["📈 Program", "🗓️ Schedule", "✅ Optimization validation"])
+    tab_prog, tab_sched, tab_val = st.tabs(["📈 Program", "🗓️ Schedule", "✅ Optimization Validation"])
 
     with tab_prog:
         c = st.columns(5)
@@ -141,7 +154,7 @@ if mode.startswith("📈"):
 
         l, r = st.columns(2)
         with l:
-            st.subheader("Projects by capital efficiency (green = funded)")
+            st.subheader("Projects by Capital Efficiency (green = funded)")
             d = econ.sort_values("capital_efficiency", ascending=False).copy()
             d["sel"] = d["project_id"].isin(sel)
             fig = go.Figure(go.Bar(
@@ -151,7 +164,7 @@ if mode.startswith("📈"):
                               xaxis=dict(showticklabels=False))
             st.plotly_chart(theme.style_fig(fig, height=360), width="stretch")
         with r:
-            st.subheader("Allocation by category")
+            st.subheader("Allocation by Category")
             bc = pd.DataFrame([{"Category": k, "Capex $MM": v["capex"]/1e6, "Risked NPV $MM": v["risked_npv"]/1e6,
                                 "n": v["n"]} for k, v in program.by_category.items()])
             if len(bc):
@@ -161,7 +174,7 @@ if mode.startswith("📈"):
                 pf.update_layout(barmode="group")
                 st.plotly_chart(theme.style_fig(pf, height=360), width="stretch")
 
-        st.subheader("Funded vs. rejected — capex vs. risked NPV (size ∝ rig-days)")
+        st.subheader("Funded vs. Rejected — Capex vs. Risked NPV (size ∝ rig-days)")
         sc = econ.copy()
         sc["funded"] = sc["project_id"].isin(sel)
         sz = (sc["rig_days"] / sc["rig_days"].max() * 34 + 6) if sc["rig_days"].max() > 0 else 12
@@ -177,10 +190,11 @@ if mode.startswith("📈"):
                 hovertemplate="%{text}<br>capex $%{x:.1f}MM<br>risked NPV $%{y:.1f}MM<extra>" + name + "</extra>"))
         scat.update_layout(xaxis_title="capex ($MM)", yaxis_title="risked NPV ($MM)")
         st.plotly_chart(theme.style_fig(scat, height=340), width="stretch")
+        theme.source_note("0/1 MILP (CBC via PuLP); points sized by rig-days, x = capex ($MM), y = risked NPV ($MM).")
 
         fl, fr = st.columns(2)
         with fl:
-            st.subheader("Efficient frontier — NPV vs. budget")
+            st.subheader("Efficient Frontier — NPV vs. Budget")
             front = budget_frontier(projects, price, total_capex, rig_cap, steps=14)
             ff = go.Figure(go.Scatter(x=front["budget"]/1e6, y=front["risked_npv"]/1e6, mode="lines+markers",
                                       line=dict(color=theme.NAVY)))
@@ -188,17 +202,19 @@ if mode.startswith("📈"):
                          annotation_text=f"budget ${budget/1e6:,.0f}MM")
             ff.update_layout(xaxis_title="capital budget ($MM)", yaxis_title="optimal risked NPV ($MM)")
             st.plotly_chart(theme.style_fig(ff, height=320), width="stretch")
+            theme.source_note("Optimal risked NPV ($MM) re-solved at each budget ($MM); 0/1 MILP (CBC via PuLP), rig limit fixed.")
             st.caption("The curve flattens — the marginal value of capital diminishes. That's the picture that "
                        "sizes (or caps) the budget ask.")
         with fr:
-            st.subheader("Price-deck sensitivity")
+            st.subheader("Price-Deck Sensitivity")
             ps = price_scenarios(projects, budget, rig_cap)
             pp = go.Figure(go.Bar(x=[f"${p:.0f}" for p in ps["price"]], y=ps["risked_npv"]/1e6,
                                   marker_color=theme.BLUE))
             pp.update_layout(xaxis_title="realized price", yaxis_title="program risked NPV ($MM)")
             st.plotly_chart(theme.style_fig(pp, height=320), width="stretch")
+            theme.source_note("Program re-optimized at each oil price ($/bbl); y = total risked NPV ($MM) at fixed budget + rig limit.")
 
-        st.subheader("Recommended program")
+        st.subheader("Recommended Program")
         pt = econ[econ["project_id"].isin(sel)].sort_values("risked_npv_usd", ascending=False).copy()
         pt["Capex"] = pt["capex_usd"].map(lambda v: f"${v/1e6:,.2f}MM")
         pt["Risked NPV"] = pt["risked_npv_usd"].map(lambda v: f"${v/1e6:,.2f}MM")
@@ -209,8 +225,10 @@ if mode.startswith("📈"):
                      .rename(columns={"project_id": "ID", "name": "Project", "label": "Type", "area": "Area"}),
                      width="stretch", hide_index=True)
 
+        theme.references(["milp", "npv"])
+
         st.divider()
-        st.subheader("📝 Capital-program memo")
+        st.subheader("📝 Capital-Program Memo")
         if st.button("Generate memo", type="primary"):
             try:
                 client = None
@@ -226,7 +244,7 @@ if mode.startswith("📈"):
                 st.markdown(render_memo_markdown(program, greedy, ps, program.by_category))
 
     with tab_sched:
-        st.subheader("Quarterly schedule (per-quarter rig capacity)")
+        st.subheader("Quarterly Schedule (per-quarter rig capacity)")
         rig_q = st.slider("Rig-day capacity per quarter", 20, rig_cap, max(rig_cap // 4, 20), 5)
         sched = schedule_program(econ, list(sel), projects, n_quarters=4, rig_per_quarter=rig_q)
         if len(sched):
@@ -238,6 +256,7 @@ if mode.startswith("📈"):
             sf.update_layout(barmode="group",
                              yaxis2=dict(overlaying="y", side="right", title="rig-days"))
             st.plotly_chart(theme.style_fig(sf, height=320), width="stretch")
+            theme.source_note("Funded program sequenced across quarters under per-quarter rig capacity; left axis = capex ($MM), right axis = rig-days.")
             disp = sched.copy()
             disp["capex_usd"] = disp["capex_usd"].map(lambda v: f"${v/1e6:,.2f}MM")
             disp["risked_npv_usd"] = disp["risked_npv_usd"].map(lambda v: f"${v/1e6:,.2f}MM")
@@ -247,7 +266,7 @@ if mode.startswith("📈"):
                          width="stretch", hide_index=True)
 
     with tab_val:
-        st.subheader("Optimization validation")
+        st.subheader("Optimization Validation")
         st.caption("The MILP is exact (branch-and-bound). We validate it against the greedy baseline it must "
                    "beat-or-tie, and report the LP-relaxation bound — a provable cap on the best possible NPV.")
         v = st.columns(3)
@@ -262,10 +281,11 @@ if mode.startswith("📈"):
             f"- **Optimizer uplift:** ${uplift/1e6:,.1f}MM ({uplift/max(greedy.risked_npv,1)*100:.1f}%) over "
             f"rank-by-return-and-cut — the value of optimizing both scarce resources (capital **and** rigs) "
             f"jointly instead of ranking on one.")
+        theme.references(["milp"])
 
 else:
     # ---------------- Multi-period plan ----------------
-    st.subheader("🗓️ Multi-period capital plan")
+    st.subheader("🗓️ Multi-Period Capital Plan")
     st.caption("Assign each backlog project to AT MOST one period (e.g. a quarter). Each period has its "
                "own capital budget and rig-day capacity. The MILP maximizes total (optionally discounted) "
                "risked NPV across the whole horizon — the VP annual-plan deliverable.")
@@ -311,7 +331,7 @@ else:
                 f"{mp.optimality_gap_pct:.2f}%" if mp.optimality_gap_pct is not None else "—")
 
     # project x period schedule heatmap (funded cell = risked NPV $MM)
-    st.subheader("Project × period schedule")
+    st.subheader("Project × Period Schedule")
     funded_ids = [i for i, _ in mp.selected]
     if funded_ids:
         order = (econ[econ["project_id"].isin(funded_ids)]
@@ -329,11 +349,12 @@ else:
             hovertemplate="%{y} funded in %{x}<br>risked NPV $%{z:.1f}MM<extra></extra>"))
         heat.update_layout(xaxis_title="period", yaxis_title="project (ranked by cap. eff.)")
         st.plotly_chart(theme.style_fig(heat, height=max(320, 22 * len(order))), width="stretch")
+        theme.source_note("0/1 MILP (CBC via PuLP), fund-once across periods; cell shading = risked NPV ($MM) in the funded period.")
     else:
         st.info("No projects funded under the current per-period capacity.")
 
     # per-period utilization bars
-    st.subheader("Per-period utilization")
+    st.subheader("Per-Period Utilization")
     ul, ur = st.columns(2)
     pl = [f"P{t+1}" for t in range(n_periods)]
     with ul:
@@ -355,7 +376,7 @@ else:
         st.caption("Rig-days used vs. capacity, each period.")
 
     # funded vs rejected scatter (reused from single-period)
-    st.subheader("Funded vs. rejected — capex vs. risked NPV (size ∝ rig-days)")
+    st.subheader("Funded vs. Rejected — Capex vs. Risked NPV (size ∝ rig-days)")
     sc = econ.copy()
     sc["funded"] = sc["project_id"].isin(funded_ids)
     sz = (sc["rig_days"] / sc["rig_days"].max() * 34 + 6) if sc["rig_days"].max() > 0 else 12
@@ -371,9 +392,10 @@ else:
             hovertemplate="%{text}<br>capex $%{x:.1f}MM<br>risked NPV $%{y:.1f}MM<extra>" + name + "</extra>"))
     scat.update_layout(xaxis_title="capex ($MM)", yaxis_title="risked NPV ($MM)")
     st.plotly_chart(theme.style_fig(scat, height=340), width="stretch")
+    theme.source_note("0/1 MILP (CBC via PuLP); points sized by rig-days, x = capex ($MM), y = risked NPV ($MM).")
 
     # funded plan table
-    st.subheader("Funded plan by period")
+    st.subheader("Funded Plan by Period")
     if funded_ids:
         place = {i: t for i, t in mp.selected}
         pt = econ[econ["project_id"].isin(funded_ids)].copy()
@@ -387,3 +409,5 @@ else:
               [["Period", "project_id", "name", "label", "Capex", "Rig-days", "Risked NPV", "Cap. eff."]]
               .rename(columns={"project_id": "ID", "name": "Project", "label": "Type"}),
             width="stretch", hide_index=True)
+
+    theme.references(["milp", "npv"])
