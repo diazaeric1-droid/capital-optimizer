@@ -7,9 +7,13 @@ import subprocess
 import sys
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
-if str(REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(REPO_ROOT))
+# Add BOTH the repo root (for `src.*`) and the demo dir (for the vendored `theme`)
+# to sys.path so imports resolve under `streamlit run`, AppTest, and CI alike.
+DEMO_DIR = Path(__file__).resolve().parent
+REPO_ROOT = DEMO_DIR.parent
+for _p in (str(REPO_ROOT), str(DEMO_DIR)):
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
 
 import shutil as _shutil
 for _pyc in (REPO_ROOT / "src").rglob("__pycache__"):
