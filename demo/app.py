@@ -45,6 +45,7 @@ theme.header(
              "maximizes NPV under a capital budget + rig capacity. Built by an ex-OXY / ex-Shell Staff PE.",
     chips=[(f"v{__version__}", "ver"), ("MILP optimal", "eval")],
 )
+theme.data_badge("synthetic", "Modeled drilling / DUC / workover backlog — future capital projects aren't public data.")
 
 with st.expander(f"🆕 What is this / v{__version__}"):
     st.markdown(
