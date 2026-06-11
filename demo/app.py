@@ -234,12 +234,8 @@ if mode.startswith("📈"):
         pt["Pc"] = pt["pc"].map(lambda v: f"{v:.0%}")
         pt_display = pt[["project_id", "name", "label", "area", "Capex", "Risked NPV", "Cap. eff.", "IRR", "Pc"]].rename(columns={"project_id": "ID", "name": "Project", "label": "Type", "area": "Area"})
         st.dataframe(pt_display, width="stretch", hide_index=True)
-        st.download_button(
-            "⬇ Download CSV",
-            data=pt_display.to_csv(index=False),
-            file_name="project_economics_program.csv",
-            mime="text/csv",
-        )
+        st.download_button("⬇ Download backlog (CSV)", data=pt_display.to_csv(index=False),
+                           file_name="capital_backlog.csv", mime="text/csv")
 
         theme.references(["milp", "npv"])
 
@@ -280,6 +276,8 @@ if mode.startswith("📈"):
                                               "capex_usd": "Capex", "rig_days": "Rig-days", "risked_npv_usd": "Risked NPV"})
                          [["Quarter", "Project", "Type", "Capex", "Rig-days", "Risked NPV"]],
                          width="stretch", hide_index=True)
+            st.download_button("⬇ Download funded schedule (CSV)", data=sched.to_csv(index=False),
+                               file_name="capital_backlog.csv", mime="text/csv")
 
     with tab_val:
         st.subheader("Optimization Validation")
