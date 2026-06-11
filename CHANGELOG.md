@@ -2,6 +2,13 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/); SemVer.
 
+## [0.2.3] — 2026-06-11
+
+### Added
+- **Bring-your-own backlog (BYOD)** — "Upload your own backlog CSV" data-source option in the sidebar: `st.file_uploader` → `projects_from_csv()` helper → same MILP/greedy optimization path as the synthetic backlog. Includes a template-CSV download button, schema caption, and a server-side-storage disclaimer. Invalid/missing columns show a clear `st.error` listing required columns; never crashes.
+- `src/projects.py`: `projects_from_csv(path)` helper + `REQUIRED_CSV_COLUMNS` constant; validates presence, non-empty rows, and numeric coercion before constructing `Project` objects.
+- `tests/test_projects_csv.py`: 8 unit tests covering happy path (single row, multi-row, real synthetic CSV round-trip), missing columns, empty file, and bad numeric values.
+
 ## [0.2.2] — 2026-06-11
 
 ### Changed

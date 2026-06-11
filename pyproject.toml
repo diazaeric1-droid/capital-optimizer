@@ -1,6 +1,6 @@
 [project]
 name = "capital-optimizer"
-version = "0.2.2"
+version = "0.2.3"
 description = "Capital-allocation optimizer: risked project economics + MILP program selection under budget/rig constraints"
 readme = "README.md"
 requires-python = ">=3.11"

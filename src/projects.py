@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, fields
 from pathlib import Path
+from typing import Union
 
 import pandas as pd
 
@@ -19,6 +20,13 @@ CATEGORY_LABEL = {
     "recompletion": "Recompletion", "workover": "Workover",
     "alift_conversion": "Artificial-lift conversion",
 }
+
+# Ordered list of required CSV column names (matches Project dataclass fields).
+REQUIRED_CSV_COLUMNS: list[str] = [
+    "project_id", "name", "category", "area",
+    "capex_usd", "qi_bopd", "di_annual", "b",
+    "opex_per_bbl", "nri", "pc", "rig_days", "earliest_quarter",
+]
 
 
 @dataclass
@@ -49,6 +57,57 @@ def load_projects(path: str | Path) -> list[Project]:
     for _, row in df.iterrows():
         out.append(Project(**{k: row[k] for k in keys}))
     return out
+
+
+def projects_from_csv(path: Union[str, Path]) -> list[Project]:
+    """Load a list of Project objects from a user-supplied CSV file.
+
+    Validates that all required columns are present and that the DataFrame
+    is non-empty. Raises ``ValueError`` with a descriptive message on any
+    validation failure so callers (e.g. the Streamlit app) can surface a clean
+    ``st.error`` rather than an unhandled exception.
+
+    Column contract (all required):
+        project_id, name, category, area, capex_usd, qi_bopd, di_annual, b,
+        opex_per_bbl, nri, pc, rig_days, earliest_quarter
+
+    Type coercion mirrors ``load_projects``:
+        - Numeric columns are coerced via pandas (non-numeric → NaN → error).
+        - ``earliest_quarter`` is cast to int.
+        - ``project_id``, ``name``, ``category``, ``area`` are kept as str.
+    """
+    df = pd.read_csv(path)
+
+    # --- column presence check -----------------------------------------------
+    missing = [c for c in REQUIRED_CSV_COLUMNS if c not in df.columns]
+    if missing:
+        raise ValueError(
+            f"Missing required columns: {missing}. "
+            f"Required: {REQUIRED_CSV_COLUMNS}"
+        )
+
+    if df.empty:
+        raise ValueError("CSV contains no data rows.")
+
+    # --- numeric coercion + NaN check ----------------------------------------
+    numeric_cols = [
+        "capex_usd", "qi_bopd", "di_annual", "b",
+        "opex_per_bbl", "nri", "pc", "rig_days", "earliest_quarter",
+    ]
+    for col in numeric_cols:
+        df[col] = pd.to_numeric(df[col], errors="coerce")
+    bad_rows = df[numeric_cols].isna().any(axis=1)
+    if bad_rows.any():
+        raise ValueError(
+            f"Non-numeric or missing values in numeric columns at row(s): "
+            f"{list(df.index[bad_rows] + 1)}."
+        )
+
+    # Cast earliest_quarter to int (it arrives as float after to_numeric).
+    df["earliest_quarter"] = df["earliest_quarter"].astype(int)
+
+    keys = {f.name for f in fields(Project)}
+    return [Project(**{k: row[k] for k in keys}) for _, row in df.iterrows()]
 
 
 def projects_to_frame(projects: list[Project]) -> pd.DataFrame:

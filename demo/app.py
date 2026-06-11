@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 # Add BOTH the repo root (for `src.*`) and the demo dir (for the vendored `theme`)
@@ -48,7 +49,7 @@ from src.optimizer import (
     milp_select_multiperiod,
     optimize,
 )
-from src.projects import load_projects
+from src.projects import REQUIRED_CSV_COLUMNS, load_projects, projects_from_csv
 from src.scenarios import budget_frontier, price_scenarios
 from src.schedule import schedule_program
 
@@ -60,8 +61,6 @@ theme.header(
              "maximizes NPV under a capital budget + rig capacity. Built by an ex-OXY / ex-Shell Staff PE.",
     chips=[(f"v{__version__}", "ver"), ("MILP optimal", "eval")],
 )
-theme.data_badge("synthetic", "Modeled drilling / DUC / workover backlog — future capital projects aren't public data.")
-
 theme.how_to(
     "- **What it does:** maximizes total **risked NPV** by selecting *which projects run* (single-period) "
     "or *which project runs in which period* (multi-period plan), solved as a 0/1 MILP.\n"
@@ -104,17 +103,54 @@ if not (DATA / "projects.csv").exists():
     with st.status("First-time setup: generating project inventory…", expanded=False):
         subprocess.run([sys.executable, str(DATA / "generate.py")], check=True)
 
+# Data-source toggle values for the sidebar radio.
+_SRC_SYNTHETIC = "Synthetic (demo)"
+_SRC_UPLOAD = "Upload your own backlog CSV"
+
+# Template CSV bytes (generated from the synthetic backlog columns; no data rows).
+_TEMPLATE_HEADER = ",".join(REQUIRED_CSV_COLUMNS) + "\n"
+_TEMPLATE_EXAMPLE = (
+    "P001,Well-001,new_drill,Midland-S,9000000,800,1.4,0.9,12,0.75,0.9,30,1\n"
+)
+_TEMPLATE_BYTES = (_TEMPLATE_HEADER + _TEMPLATE_EXAMPLE).encode()
+
 
 @st.cache_data(show_spinner=False)
-def _projects():
+def _synthetic_projects():
     return load_projects(DATA / "projects.csv")
 
 
-projects = _projects()
-total_capex = sum(p.capex_usd for p in projects)
-total_rig = sum(p.rig_days for p in projects)
-
+# --- Sidebar (data source + plan inputs) ------------------------------------
 with st.sidebar:
+    st.header("Data Source")
+    data_source = st.radio(
+        "Backlog source",
+        [_SRC_SYNTHETIC, _SRC_UPLOAD],
+        index=0,
+        help="Synthetic = the built-in ~45-project Permian demo backlog. "
+             "Upload = bring your own CSV in the required schema.",
+    )
+
+    uploaded_file = None
+    if data_source == _SRC_UPLOAD:
+        st.caption(
+            "Upload a CSV with columns: "
+            + ", ".join(f"`{c}`" for c in REQUIRED_CSV_COLUMNS)
+            + ". Nothing is stored server-side — the file is parsed in memory for this session only."
+        )
+        st.download_button(
+            "Download template CSV",
+            data=_TEMPLATE_BYTES,
+            file_name="backlog_template.csv",
+            mime="text/csv",
+            help="Prefilled header + one example row. Fill in your projects and upload.",
+        )
+        uploaded_file = st.file_uploader(
+            "Backlog CSV", type=["csv"],
+            help="Required columns: " + ", ".join(REQUIRED_CSV_COLUMNS),
+        )
+
+    st.divider()
     st.header("Plan Inputs")
     mode = st.radio("Planning mode",
                     ["📈 Single-period program", "🗓️ Multi-period plan"],
@@ -122,8 +158,41 @@ with st.sidebar:
                          "Multi-period schedules the backlog across several periods (e.g. quarters), "
                          "each with its own budget + rig capacity.")
     price = st.number_input("Realized oil price ($/bbl)", 30.0, 120.0, 70.0, 1.0)
-    budget = st.slider("Capital budget ($MM)", 10, int(total_capex / 1e6), 60, 5) * 1e6
-    rig_cap = st.slider("Rig-day capacity", 60, int(total_rig), 170, 10)
+
+# --- Resolve project list (before the budget slider, which needs total_capex) --
+if data_source == _SRC_UPLOAD:
+    if uploaded_file is None:
+        st.info("Upload a backlog CSV in the sidebar to run the optimizer on your own projects.")
+        st.stop()
+    # Write the upload to a NamedTemporaryFile so projects_from_csv (which calls
+    # pd.read_csv with a path) can read it without loading all bytes into memory.
+    try:
+        with tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as tmp:
+            tmp.write(uploaded_file.read())
+            tmp_path = tmp.name
+        projects = projects_from_csv(tmp_path)
+    except ValueError as exc:
+        st.error(
+            f"Could not load backlog: {exc}\n\n"
+            f"Required columns: {REQUIRED_CSV_COLUMNS}"
+        )
+        st.stop()
+    st.info(
+        f"Loaded {len(projects)} projects from **{uploaded_file.name}**. "
+        "Nothing stored server-side — parsed in memory for this session only."
+    )
+    theme.data_badge("real", f"User-uploaded backlog: {uploaded_file.name}")
+else:
+    projects = _synthetic_projects()
+    theme.data_badge("synthetic", "Modeled drilling / DUC / workover backlog — future capital projects aren't public data.")
+
+total_capex = sum(p.capex_usd for p in projects)
+total_rig = sum(p.rig_days for p in projects)
+
+# Remaining sidebar controls (need total_capex / total_rig from the resolved backlog).
+with st.sidebar:
+    budget = st.slider("Capital budget ($MM)", 10, max(10, int(total_capex / 1e6)), 60, 5) * 1e6
+    rig_cap = st.slider("Rig-day capacity", 10, max(10, int(total_rig)), min(170, int(total_rig)), 10)
     min_fy = st.number_input("Min first-year add (bbl, optional)", 0, 5_000_000, 0, 100_000)
     byok_key = st.text_input(
         "🔑 Anthropic API key (optional)", type="password",
@@ -132,12 +201,7 @@ with st.sidebar:
     st.caption(f"Inventory: {len(projects)} projects · ${total_capex/1e6:,.0f}MM capex · {total_rig} rig-days.")
 
 
-@st.cache_data(show_spinner=False)
-def _econ(px):
-    return economics_frame(projects, px)
-
-
-econ = _econ(price)
+econ = economics_frame(projects, price)
 if mode.startswith("📈"):
     try:
         program = optimize(econ, budget, rig_cap, float(min_fy))
