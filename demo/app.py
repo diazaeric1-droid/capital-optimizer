@@ -232,9 +232,14 @@ if mode.startswith("📈"):
         pt["Cap. eff."] = pt["capital_efficiency"].map(lambda v: f"{v:.2f}x")
         pt["IRR"] = pt["irr_pct"].map(lambda v: f"{v:.0f}%" if pd.notna(v) else "—")
         pt["Pc"] = pt["pc"].map(lambda v: f"{v:.0%}")
-        st.dataframe(pt[["project_id", "name", "label", "area", "Capex", "Risked NPV", "Cap. eff.", "IRR", "Pc"]]
-                     .rename(columns={"project_id": "ID", "name": "Project", "label": "Type", "area": "Area"}),
-                     width="stretch", hide_index=True)
+        pt_display = pt[["project_id", "name", "label", "area", "Capex", "Risked NPV", "Cap. eff.", "IRR", "Pc"]].rename(columns={"project_id": "ID", "name": "Project", "label": "Type", "area": "Area"})
+        st.dataframe(pt_display, width="stretch", hide_index=True)
+        st.download_button(
+            "⬇ Download CSV",
+            data=pt_display.to_csv(index=False),
+            file_name="project_economics_program.csv",
+            mime="text/csv",
+        )
 
         theme.references(["milp", "npv"])
 
@@ -444,10 +449,15 @@ else:
         pt["Risked NPV"] = pt["risked_npv_usd"].map(lambda v: f"${v/1e6:,.2f}MM")
         pt["Cap. eff."] = pt["capital_efficiency"].map(lambda v: f"{v:.2f}x")
         pt["Rig-days"] = pt["rig_days"].map(lambda v: f"{v:.0f}")
-        st.dataframe(
-            pt.sort_values(["Period", "risked_npv_usd"], ascending=[True, False])
+        mp_display = (pt.sort_values(["Period", "risked_npv_usd"], ascending=[True, False])
               [["Period", "project_id", "name", "label", "Capex", "Rig-days", "Risked NPV", "Cap. eff."]]
-              .rename(columns={"project_id": "ID", "name": "Project", "label": "Type"}),
-            width="stretch", hide_index=True)
+              .rename(columns={"project_id": "ID", "name": "Project", "label": "Type"}))
+        st.dataframe(mp_display, width="stretch", hide_index=True)
+        st.download_button(
+            "⬇ Download CSV",
+            data=mp_display.to_csv(index=False),
+            file_name="funded_program_multiperiod.csv",
+            mime="text/csv",
+        )
 
     theme.references(["milp", "npv"])
