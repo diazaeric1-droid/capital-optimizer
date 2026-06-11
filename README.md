@@ -40,7 +40,7 @@ resource (rig crews) is also scarce, because a single-metric ranking can't trade
    solved exactly by branch-and-bound (CBC via PuLP).
 3. **Proves it's worth it**: reports the $ of risked NPV captured over the greedy rank-and-cut
    baseline, plus the **LP-relaxation bound** so the solution is provably near-optimal (small gap).
-   On the demo inventory under a binding rig limit, the optimizer captures **~$34MM (≈12%) more**
+   On the demo inventory under a binding rig limit, the optimizer captures **~$4–8MM (≈3–5%) more**
    than rank-and-cut.
 4. **Scenarios a VP asks for**: the **efficient frontier** (optimal NPV vs. budget — diminishing
    returns), **price-deck sensitivity**, and a **quarterly schedule** under per-quarter rig capacity.

@@ -92,7 +92,7 @@ with st.expander(f"🆕 What Is This / v{__version__}"):
         "**New in v0.2.0:**\n"
         "- **Multi-period capital plan** — pick *which project runs in which period* under per-period "
         "budget + rig-day capacity (fund-once, earliest-start, period-discounted NPV), with a "
-        "project×period **schedule heatmap** + per-period utilization (~12% / $35MM over greedy).\n"
+        "project×period **schedule heatmap** + per-period utilization (~5% / $7MM over greedy).\n"
         "- **Infeasibility banner** — infeasible programs are flagged honestly instead of faking a plan.\n"
         "- **Funded-vs-rejected scatter** (capex × risked NPV, sized by rig-days) + a **shared fleet "
         "registry** for consistent Permian field/formation identity across the suite.\n"
