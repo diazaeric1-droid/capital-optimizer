@@ -347,15 +347,19 @@ else:
         st.warning("Blank / invalid per-period capacity treated as 0 for: "
                    + "; ".join(msgs) + ". Enter a non-negative number to fund that period.")
 
+    earliest_start = {p.project_id: p.earliest_quarter - 1 for p in projects}
+
     try:
         mp = milp_select_multiperiod(econ, n_periods, budget_pp, rig_pp,
-                                     discount_per_period=disc_pct)
+                                     discount_per_period=disc_pct,
+                                     earliest_start=earliest_start)
     except InfeasibleProgram as exc:
         st.error(str(exc))
         theme.flag("No feasible multi-period plan", "high")
         st.stop()
     mpg = greedy_select_multiperiod(econ, n_periods, budget_pp, rig_pp,
-                                    discount_per_period=disc_pct)
+                                    discount_per_period=disc_pct,
+                                    earliest_start=earliest_start)
     mp_uplift = mp.risked_npv - mpg.risked_npv
 
     k = st.columns(4)
