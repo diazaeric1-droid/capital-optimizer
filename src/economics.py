@@ -11,11 +11,12 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from . import econ_core
 from .projects import Project
 
 DEFAULT_DISCOUNT = 0.10
 DEFAULT_HORIZON_YEARS = 15
-DAYS_PER_MONTH = 365.25 / 12.0
+DAYS_PER_MONTH = econ_core.DAYS_PER_MONTH
 
 
 @dataclass
@@ -34,53 +35,21 @@ class ProjectEconomics:
     rig_days: float
 
 
-def _arps_monthly_rate(qi: float, di: float, b: float, months: np.ndarray) -> np.ndarray:
-    t = months / 12.0
-    if b < 1e-6:
-        return qi * np.exp(-di * t)
-    return qi / np.power(1.0 + b * di * t, 1.0 / b)
-
-
-def _irr_annual(monthly_cf: np.ndarray, capex: float) -> float | None:
-    """IRR (annual) via bisection on the rate that zeros NPV of [−capex, monthly_cf...]."""
-    months = np.arange(1, len(monthly_cf) + 1)
-
-    def npv(rate_annual: float) -> float:
-        if rate_annual <= -0.999:
-            return float("inf")
-        df = (1.0 + rate_annual) ** (months / 12.0)
-        return float(-capex + np.sum(monthly_cf / df))
-
-    lo, hi = -0.9, 5.0
-    if npv(lo) < 0:           # never positive even at deep discount → no IRR
-        return None
-    if npv(hi) > 0:           # still positive at 500% → cap it
-        return 500.0
-    for _ in range(100):
-        mid = 0.5 * (lo + hi)
-        if npv(mid) > 0:
-            lo = mid
-        else:
-            hi = mid
-    return round(0.5 * (lo + hi) * 100.0, 1)
-
-
 def project_economics(p: Project, realized_price: float, discount: float = DEFAULT_DISCOUNT,
                       horizon_years: int = DEFAULT_HORIZON_YEARS) -> ProjectEconomics:
     months = np.arange(1, horizon_years * 12 + 1)
-    rate = _arps_monthly_rate(p.qi_bopd, p.di_annual, p.b, months)
+    rate = econ_core.arps_monthly_rate(p.qi_bopd, p.di_annual, p.b, months)
     vol = np.maximum(rate, 0.0) * DAYS_PER_MONTH                    # bbl/month
     margin = (realized_price - p.opex_per_bbl) * p.nri              # $/bbl net to operator
     monthly_cf = vol * margin
 
-    df = (1.0 + discount) ** (months / 12.0)
-    pv = float(np.sum(monthly_cf / df))
+    pv = econ_core.discounted_pv(monthly_cf, discount)
     npv = pv - p.capex_usd
-    risked = p.pc * npv + (1.0 - p.pc) * (-p.capex_usd)             # downside = lose the capex
+    # Risked NPV = pc·PV − capex (cost is certain; only revenue is chance-weighted). This is
+    # algebraically identical to the dry-hole framing pc·NPV_success + (1−pc)·(−capex).
+    risked = econ_core.risked_npv(pv, p.capex_usd, p.pc)
 
-    cum = np.cumsum(monthly_cf)
-    payout_idx = int(np.searchsorted(cum, p.capex_usd))
-    payout = float(payout_idx + 1) if payout_idx < len(months) else float("inf")
+    payout = econ_core.payout_months(monthly_cf, p.capex_usd)
 
     eur = float(vol.sum())
     fy = float(vol[:12].sum())
@@ -89,7 +58,7 @@ def project_economics(p: Project, realized_price: float, discount: float = DEFAU
 
     return ProjectEconomics(
         project_id=p.project_id, capex_usd=p.capex_usd, npv_usd=npv, risked_npv_usd=risked,
-        irr_pct=_irr_annual(monthly_cf, p.capex_usd), payout_months=payout,
+        irr_pct=econ_core.irr_annual(monthly_cf, p.capex_usd), payout_months=payout,
         eur_bbl=eur, first_year_bbl=fy, fd_per_bbl=fd, capital_efficiency=cap_eff,
         pc=p.pc, rig_days=p.rig_days,
     )
